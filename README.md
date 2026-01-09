@@ -11,7 +11,7 @@
 
 ## 📂 目录结构
 
-项目主要包含驱动库 (`Library`) 与 Flash 算法工程 (`LCXKP_FLASH_SPI`)。[驱动部分为闭门造车,只保证能用,不保证性能]
+项目主要包含驱动库 (`Library`) 与 Flash 算法工程 (`LCXKP_FLASH_SPI`)。[驱动部分为闭门造车,只保证能用,不保证性能😜]
 
 ```text
 .
