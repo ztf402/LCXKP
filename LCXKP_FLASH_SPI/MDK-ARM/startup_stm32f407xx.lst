@@ -1,0 +1,229 @@
+
+
+
+ARM Macro Assembler    Page 1 
+
+
+    1 00000000         ;*******************************************************
+                       ************************
+    2 00000000         ;* File Name          : startup_stm32f407xx.s
+    3 00000000         ;* Description        : Fixed Startup file for STM32F407
+                        Flash Algorithm
+    4 00000000         ;* Solved: error: A1186E: Code generated in data area
+    5 00000000         ;*******************************************************
+                       ************************
+    6 00000000         
+    7 00000000         ; <h> Stack Configuration
+    8 00000000         ;   <o> Stack Size (in Bytes) <0x0-0xFFFFFFFF:8>
+    9 00000000         ; </h>
+   10 00000000 00000800 
+                       Stack_Size
+                               EQU              0x00000800  ; 2KB Stack for Fla
+                                                            sh Algorithm
+   11 00000000         
+   12 00000000                 AREA             STACK, NOINIT, READWRITE, ALIGN
+=3
+   13 00000000         Stack_Mem
+                               SPACE            Stack_Size
+   14 00000800         __initial_sp
+   15 00000800         
+   16 00000800         
+   17 00000800         ; <h> Heap Configuration
+   18 00000800         ;   <o>  Heap Size (in Bytes) <0x0-0xFFFFFFFF:8>
+   19 00000800         ; </h>
+   20 00000800 00000200 
+                       Heap_Size
+                               EQU              0x00000200  ; 512B Heap
+   21 00000800         
+   22 00000800                 AREA             HEAP, NOINIT, READWRITE, ALIGN=
+3
+   23 00000000         __heap_base
+   24 00000000         Heap_Mem
+                               SPACE            Heap_Size
+   25 00000200         __heap_limit
+   26 00000200         
+   27 00000200                 PRESERVE8
+   28 00000200                 THUMB
+   29 00000200         
+   30 00000200         ; ======================================================
+                       ========================
+   31 00000200         ; ?????:?????????? (CODE, READONLY)
+   32 00000200         ; ??????????? LDR/BX ???? HEAP ?????,??? A1186E ??
+   33 00000200         ; ======================================================
+                       ========================
+   34 00000200                 AREA             |.text|, CODE, READONLY
+   35 00000000         
+   36 00000000         
+   37 00000000         ; User Stack and Heap initialization
+   38 00000000         ;*******************************************************
+                       ************************
+   39 00000000                 IF               :DEF:__MICROLIB
+   46 00000000         
+   47 00000000                 IMPORT           __use_two_region_memory
+   48 00000000                 EXPORT           __user_initial_stackheap
+   49 00000000         
+   50 00000000         __user_initial_stackheap
+
+
+
+ARM Macro Assembler    Page 2 
+
+
+   51 00000000         
+   52 00000000 4802            LDR              R0, =  Heap_Mem
+   53 00000002 4903            LDR              R1, =(Stack_Mem + Stack_Size)
+   54 00000004 4A03            LDR              R2, = (Heap_Mem +  Heap_Size)
+   55 00000006 4B04            LDR              R3, = Stack_Mem
+   56 00000008 4770            BX               LR
+   57 0000000A         
+   58 0000000A 00 00           ALIGN
+   59 0000000C         
+   60 0000000C                 ENDIF
+   61 0000000C         
+   62 0000000C                 END
+              00000000 
+              00000800 
+              00000200 
+              00000000 
+Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M4.fp.sp --apcs=
+interwork//ropi/rwpi --depend=lcxkp_flash_spi\startup_stm32f407xx.d -olcxkp_fla
+sh_spi\startup_stm32f407xx.o -I.\RTE\_LCXKP_FLASH_SPI -IC:\Users\ztf402\AppData
+\Local\Arm\Packs\ARM\CMSIS\6.2.0\CMSIS\Core\Include --predefine="__UVISION_VERS
+ION SETA 542" --predefine="STM32F407xx SETA 1" --predefine="_RTE_ SETA 1" --lis
+t=startup_stm32f407xx.lst startup_stm32f407xx.s
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+STACK 00000000
+
+Symbol: STACK
+   Definitions
+      At line 12 in file startup_stm32f407xx.s
+   Uses
+      None
+Comment: STACK unused
+Stack_Mem 00000000
+
+Symbol: Stack_Mem
+   Definitions
+      At line 13 in file startup_stm32f407xx.s
+   Uses
+      At line 53 in file startup_stm32f407xx.s
+      At line 55 in file startup_stm32f407xx.s
+
+__initial_sp 00000800
+
+Symbol: __initial_sp
+   Definitions
+      At line 14 in file startup_stm32f407xx.s
+   Uses
+      None
+Comment: __initial_sp unused
+3 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+HEAP 00000000
+
+Symbol: HEAP
+   Definitions
+      At line 22 in file startup_stm32f407xx.s
+   Uses
+      None
+Comment: HEAP unused
+Heap_Mem 00000000
+
+Symbol: Heap_Mem
+   Definitions
+      At line 24 in file startup_stm32f407xx.s
+   Uses
+      At line 52 in file startup_stm32f407xx.s
+      At line 54 in file startup_stm32f407xx.s
+
+__heap_base 00000000
+
+Symbol: __heap_base
+   Definitions
+      At line 23 in file startup_stm32f407xx.s
+   Uses
+      None
+Comment: __heap_base unused
+__heap_limit 00000200
+
+Symbol: __heap_limit
+   Definitions
+      At line 25 in file startup_stm32f407xx.s
+   Uses
+      None
+Comment: __heap_limit unused
+4 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Relocatable symbols
+
+.text 00000000
+
+Symbol: .text
+   Definitions
+      At line 34 in file startup_stm32f407xx.s
+   Uses
+      None
+Comment: .text unused
+__user_initial_stackheap 00000000
+
+Symbol: __user_initial_stackheap
+   Definitions
+      At line 50 in file startup_stm32f407xx.s
+   Uses
+      At line 48 in file startup_stm32f407xx.s
+Comment: __user_initial_stackheap used once
+2 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+Absolute symbols
+
+Heap_Size 00000200
+
+Symbol: Heap_Size
+   Definitions
+      At line 20 in file startup_stm32f407xx.s
+   Uses
+      At line 24 in file startup_stm32f407xx.s
+      At line 54 in file startup_stm32f407xx.s
+
+Stack_Size 00000800
+
+Symbol: Stack_Size
+   Definitions
+      At line 10 in file startup_stm32f407xx.s
+   Uses
+      At line 13 in file startup_stm32f407xx.s
+      At line 53 in file startup_stm32f407xx.s
+
+2 symbols
+
+
+
+ARM Macro Assembler    Page 1 Alphabetic symbol ordering
+External symbols
+
+__use_two_region_memory 00000000
+
+Symbol: __use_two_region_memory
+   Definitions
+      At line 47 in file startup_stm32f407xx.s
+   Uses
+      None
+Comment: __use_two_region_memory unused
+1 symbol
+350 symbols in table
