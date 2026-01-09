@@ -1,0 +1,54 @@
+/**
+ * @file at24c02.h
+ * @author ztf402
+ * @brief at24c02 eeprom 驱动 注意,一定要对齐8bit
+ * @version 0.1
+ * @date 2026-01-06
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+#ifndef __AT24C02_H__
+#define __AT24C02_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "main.h"
+
+/* --- 设备参数定义 --- */
+#define AT24C02_ADDR_DEFAULT  0xA0  // 默认写地址 (0x50 << 1)
+#define AT24C02_PAGE_SIZE     8     // AT24C01/02 页大小为 8 字节
+#define AT24C02_TOTAL_SIZE    256   // 总容量 256 字节
+
+/* --- 对象句柄 --- */
+typedef struct {
+    I2C_HandleTypeDef *hi2c;   // I2C 句柄
+    uint16_t Addr;             // 设备地址 (支持总线上挂多个EEPROM)
+    uint16_t PageSize;         // 页大小 (便于移植到 AT24C04/08/16 等)
+} AT24C02_HandleTypeDef;
+
+/* --- 函数声明 --- */
+
+// 初始化
+HAL_StatusTypeDef AT24C02_Init(AT24C02_HandleTypeDef *hdev, I2C_HandleTypeDef *hi2c, uint16_t addr);
+
+// 基础读写 (字节级)
+HAL_StatusTypeDef AT24C02_WriteByte(AT24C02_HandleTypeDef *hdev, uint16_t memAddr, uint8_t data);
+uint8_t AT24C02_ReadByte(AT24C02_HandleTypeDef *hdev, uint16_t memAddr);
+
+// 高级读写 (Buffer级，自动处理翻页和延时)
+HAL_StatusTypeDef AT24C02_WriteBuffer(AT24C02_HandleTypeDef *hdev, uint16_t memAddr, uint8_t *pData, uint16_t len);
+HAL_StatusTypeDef AT24C02_ReadBuffer(AT24C02_HandleTypeDef *hdev, uint16_t memAddr, uint8_t *pData, uint16_t len);
+
+// 辅助功能
+HAL_StatusTypeDef AT24C02_EraseChip(AT24C02_HandleTypeDef *hdev); // 清空整个芯片
+HAL_StatusTypeDef AT24C02_CheckReady(AT24C02_HandleTypeDef *hdev); // 检查是否写入完成
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __AT24C02_H__ */
+

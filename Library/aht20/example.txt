@@ -1,0 +1,30 @@
+#include "main.h"
+#include "i2c.h"
+#include "aht20.h"
+#include <stdio.h> // for printf
+
+// 定义句柄
+AHT20_HandleTypeDef hAht20;
+
+int main(void) {
+    HAL_Init();
+    SystemClock_Config();
+    MX_I2C1_Init(); // 你的 I2C 初始化
+
+    // 1. 初始化 AHT20 (只需调用一次)
+    // 注意：AHT20 地址固定，内部已处理，无需传入地址
+    if (AHT20_Init(&hAht20, &hi2c1) != HAL_OK) {
+        printf("AHT20 Init Failed!\r\n");
+    }
+
+    while (1) {
+        /* --- 用法 A: 简单阻塞读取 (如果不介意 HAL_Delay 80ms) --- */
+        if (AHT20_ReadNow(&hAht20) == HAL_OK) {
+            printf("Temp: %.2f C, Hum: %.2f %%\r\n", hAht20.Temperature, hAht20.Humidity);
+        } else {
+            printf("AHT20 Read Error\r\n");
+        }
+        
+        HAL_Delay(1000); // 采样间隔
+    }
+}

@@ -1,0 +1,55 @@
+#ifndef __AHT20_H__
+#define __AHT20_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "main.h" 
+
+/* --- 设备地址 --- */
+// AHT20 7位地址 0x38 -> 8位写地址 0x70
+#define AHT20_ADDRESS  (0x38 << 1)
+
+/* --- 命令字 --- */
+#define AHT20_CMD_INIT         0xBE
+#define AHT20_CMD_TRIGGER      0xAC
+#define AHT20_CMD_SOFT_RESET   0xBA
+
+/* --- 状态位 --- */
+#define AHT20_STATUS_BUSY      (1 << 7) // 1: 忙, 0: 就绪
+#define AHT20_STATUS_CALI      (1 << 3) // 1: 已校准
+
+/* --- AHT20 对象句柄 --- */
+typedef struct {
+    I2C_HandleTypeDef *hi2c;   // I2C句柄
+    
+    // 测量结果缓存
+    float Temperature;         // 单位: 摄氏度
+    float Humidity;            // 单位: %RH
+    
+    uint8_t Initialized;       // 初始化标志
+} AHT20_HandleTypeDef;
+
+/* --- 函数声明 --- */
+
+// 1. 初始化 (上电后调用)
+HAL_StatusTypeDef AHT20_Init(AHT20_HandleTypeDef *hdev, I2C_HandleTypeDef *hi2c);
+
+// 2. 简易读取 (阻塞式，耗时约 80ms)
+HAL_StatusTypeDef AHT20_ReadNow(AHT20_HandleTypeDef *hdev);
+
+// 3. 高级读取 (分步进行，用于非阻塞编程)
+// 第一步：发送测量命令
+HAL_StatusTypeDef AHT20_TriggerMeasurement(AHT20_HandleTypeDef *hdev); 
+// 第二步：在延时 >80ms 后调用此函数读取数据
+HAL_StatusTypeDef AHT20_GetData(AHT20_HandleTypeDef *hdev);
+
+// 辅助：软件复位
+HAL_StatusTypeDef AHT20_SoftReset(AHT20_HandleTypeDef *hdev);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __AHT20_H__ */

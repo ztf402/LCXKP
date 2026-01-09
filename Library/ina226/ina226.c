@@ -1,0 +1,124 @@
+#include "ina226.h"
+#include <math.h> // 需要用到 ceil 或简单的浮点运算
+
+/* --- 内部辅助：写 16位寄存器 (处理大端序) --- */
+static HAL_StatusTypeDef INA226_WriteReg(INA226_HandleTypeDef *hdev, uint8_t reg, uint16_t value) {
+    uint8_t data[3];
+    data[0] = reg;
+    data[1] = (value >> 8) & 0xFF; // MSB
+    data[2] = value & 0xFF;        // LSB
+    return HAL_I2C_Master_Transmit(hdev->hi2c, hdev->Addr, data, 3, 100);
+}
+
+/* --- 内部辅助：读 16位寄存器 (处理大端序) --- */
+static HAL_StatusTypeDef INA226_ReadReg(INA226_HandleTypeDef *hdev, uint8_t reg, uint16_t *val) {
+    uint8_t data[2];
+    if (HAL_I2C_Mem_Read(hdev->hi2c, hdev->Addr, reg, I2C_MEMADD_SIZE_8BIT, data, 2, 100) != HAL_OK) {
+        return HAL_ERROR;
+    }
+    *val = (data[0] << 8) | data[1];
+    return HAL_OK;
+}
+
+/* --- 内部辅助：校准计算 --- */
+static void INA226_Calibrate(INA226_HandleTypeDef *hdev) {
+    // 1. 计算 Current_LSB
+    // 公式: Current_LSB = MaxCurrent / 32768
+    // 为了方便阅读和计算，通常我们会把 LSB 向上取整到一个整洁的数字 (如 0.1mA, 1mA)
+    // 这里为了通用性，直接使用精确计算值，或者稍微放大一点以避免溢出
+    hdev->Current_LSB = hdev->MaxCurrent_Amp / 32768.0f;
+    
+    // 如果算出来太小，为了精度可以设个下限，比如 0.0001 (100uA)
+    // 这里简单处理，直接用算出的值。
+
+    // 2. 计算 Calibration Register (CAL)
+    // 公式: CAL = 0.00512 / (Current_LSB * R_Shunt)
+    // 注意: 0.00512 是芯片内部固定的常数
+    float cal_float = 0.00512f / (hdev->Current_LSB * hdev->ShuntResistor_Ohm);
+    
+    uint16_t cal_reg = (uint16_t)cal_float;
+    
+    // 3. 写入校准寄存器
+    INA226_WriteReg(hdev, INA226_REG_CALIBRATION, cal_reg);
+    
+    // 4. 计算 Power_LSB (固定是 Current_LSB 的 25 倍)
+    hdev->Power_LSB = hdev->Current_LSB * 25.0f;
+}
+
+/**
+ * @brief  初始化 INA226
+ */
+HAL_StatusTypeDef INA226_Init(INA226_HandleTypeDef *hdev, I2C_HandleTypeDef *hi2c, uint16_t addr, float r_shunt, float i_max) {
+    hdev->hi2c = hi2c;
+    hdev->Addr = addr;
+    hdev->ShuntResistor_Ohm = r_shunt;
+    hdev->MaxCurrent_Amp = i_max;
+    
+    // 1. 检查设备ID (可选，寄存器 FE 和 FF)
+    if (HAL_I2C_IsDeviceReady(hdev->hi2c, hdev->Addr, 3, 100) != HAL_OK) {
+        return HAL_ERROR;
+    }
+
+    // 2. 复位并配置
+    // 先软复位
+    INA226_WriteReg(hdev, INA226_REG_CONFIG, 0x8000); 
+    HAL_Delay(10);
+    
+    // 写入默认配置 (平均次数等)
+    if (INA226_WriteReg(hdev, INA226_REG_CONFIG, INA226_CONFIG_DEFAULT) != HAL_OK) return HAL_ERROR;
+
+    // 3. 执行校准 (这是读出正确电流的关键)
+    INA226_Calibrate(hdev);
+
+    return HAL_OK;
+}
+
+/**
+ * @brief  读取总线电压
+ * @note   VBUS 寄存器 LSB 固定为 1.25 mV
+ */
+HAL_StatusTypeDef INA226_GetBusVoltage(INA226_HandleTypeDef *hdev) {
+    uint16_t raw_vbus = 0;
+    if (INA226_ReadReg(hdev, INA226_REG_BUS_VOLTAGE, &raw_vbus) != HAL_OK) return HAL_ERROR;
+    
+    // 原始值直接乘以 1.25mV (0.00125 V)
+    hdev->Voltage_V = raw_vbus * 0.00125f;
+    return HAL_OK;
+}
+
+/**
+ * @brief  读取所有参数 (V, A, W)
+ */
+HAL_StatusTypeDef INA226_ReadAll(INA226_HandleTypeDef *hdev) {
+    uint16_t raw_vbus = 0;
+    int16_t raw_current = 0; // 注意：电流是有符号的
+    uint16_t raw_power = 0;
+    int16_t raw_shunt = 0;
+
+    // 1. 读取 总线电压 (Bus Voltage)
+    if (INA226_ReadReg(hdev, INA226_REG_BUS_VOLTAGE, &raw_vbus) != HAL_OK) return HAL_ERROR;
+    hdev->Voltage_V = raw_vbus * 0.00125f;
+
+    // 2. 读取 电流 (Current)
+    // 如果没有 Calibration，这里读出来是 0
+    if (INA226_ReadReg(hdev, INA226_REG_CURRENT, (uint16_t*)&raw_current) != HAL_OK) return HAL_ERROR;
+    hdev->Current_A = raw_current * hdev->Current_LSB;
+
+    // 3. 读取 功率 (Power)
+    if (INA226_ReadReg(hdev, INA226_REG_POWER, &raw_power) != HAL_OK) return HAL_ERROR;
+    hdev->Power_W = raw_power * hdev->Power_LSB;
+
+    // 4. (可选) 读取 分流电阻压降 (Shunt Voltage)
+    // LSB 固定 2.5uV
+    if (INA226_ReadReg(hdev, INA226_REG_SHUNT_VOLTAGE, (uint16_t*)&raw_shunt) != HAL_OK) return HAL_ERROR;
+    hdev->ShuntVoltage_mV = raw_shunt * 0.0025f;
+
+    return HAL_OK;
+}
+
+/**
+ * @brief  软件复位
+ */
+HAL_StatusTypeDef INA226_Reset(INA226_HandleTypeDef *hdev) {
+    return INA226_WriteReg(hdev, INA226_REG_CONFIG, 0x8000);
+}

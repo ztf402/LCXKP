@@ -1,0 +1,37 @@
+#include "main.h"
+#include "i2c.h"
+#include "ina226.h"
+#include <stdio.h>
+
+// 1. 定义句柄
+INA226_HandleTypeDef hPowerMon;
+
+int main(void) {
+    HAL_Init();
+    SystemClock_Config();
+    MX_I2C1_Init(); // I2C 初始化
+
+    // 2. 初始化 INA226
+    // 参数: 句柄, I2C指针, 地址(0x80), 电阻(0.002欧), 最大电流(10A)
+    // 驱动会自动计算最佳的分辨率
+    if (INA226_Init(&hPowerMon, &hi2c1, 0x80, 0.002f, 10.0f) != HAL_OK) {
+        printf("INA226 Init Failed!\r\n");
+    } else {
+        printf("INA226 Init OK. Current LSB: %.6f A\r\n", hPowerMon.Current_LSB);
+    }
+
+    while (1) {
+        // 3. 读取数据
+        if (INA226_ReadAll(&hPowerMon) == HAL_OK) {
+            // 直接使用转换好的物理量
+            // %.3f 表示保留3位小数
+            printf("Bus: %.3f V, Shunt: %.3f mV\r\n", hPowerMon.Voltage_V, hPowerMon.ShuntVoltage_mV);
+            printf("Current: %.4f A, Power: %.4f W\r\n", hPowerMon.Current_A, hPowerMon.Power_W);
+            printf("-----------------------------\r\n");
+        } else {
+            printf("INA226 Read Error\r\n");
+        }
+
+        HAL_Delay(1000); // 1秒刷新一次
+    }
+}

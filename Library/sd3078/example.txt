@@ -1,0 +1,39 @@
+#include "main.h"
+#include "i2c.h"
+#include "sd3078.h"
+#include <stdio.h>
+
+SD3078_t rtc;
+
+void RTC_Test(void)
+{
+    printf("Initializing SD3078...\r\n");
+    
+    // 初始化：传入 I2C 句柄
+    if (SD3078_Init(&rtc, &hi2c1) == 0) {
+        printf("SD3078 Found!\r\n");
+        
+        // 设置时间：2023年 10月 27日 (星期五) 12:30:00
+        // 注意：星期几需要自己计算或输入，SD3078 不会自动根据日期算星期
+        SD3078_SetTime(&rtc, 12, 30, 00);
+        SD3078_SetDate(&rtc, 23, 10, 27, 5);
+        
+    } else {
+        printf("SD3078 Init Failed!\r\n");
+    }
+}
+
+void RTC_Loop(void)
+{
+    SD3078_Time_t time;
+    SD3078_Date_t date;
+    
+    // 获取当前时间
+    if (SD3078_GetFullTime(&rtc, &time, &date) == 0) {
+        printf("Time: 20%02d-%02d-%02d (W%d) %02d:%02d:%02d\r\n",
+               date.year, date.month, date.day, date.week,
+               time.hours, time.minutes, time.seconds);
+    }
+    
+    HAL_Delay(1000);
+}

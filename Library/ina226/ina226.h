@@ -1,0 +1,71 @@
+#ifndef __INA226_H__
+#define __INA226_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "main.h"
+
+/* --- 寄存器地址 --- */
+#define INA226_REG_CONFIG        0x00
+#define INA226_REG_SHUNT_VOLTAGE 0x01
+#define INA226_REG_BUS_VOLTAGE   0x02
+#define INA226_REG_POWER         0x03
+#define INA226_REG_CURRENT       0x04
+#define INA226_REG_CALIBRATION   0x05
+#define INA226_REG_MASK_ENABLE   0x06
+#define INA226_REG_ALERT_LIMIT   0x07
+#define INA226_REG_MANUFACTURER  0xFE
+#define INA226_REG_DIE_ID        0xFF
+
+/* --- 配置参数宏 (可按需修改) --- */
+// AVG: 16次平均, VBUS/VSH: 1.1ms转换时间, Mode: 连续电压电流模式
+// 0x4000(Reset) | 0x0400(AVG=16) | 0x01C0(VBUS=1.1ms) | 0x0038(VSH=1.1ms) | 0x0007(Cont V+I)
+#define INA226_CONFIG_DEFAULT    0x4527 
+
+/* --- 对象句柄 --- */
+typedef struct {
+    I2C_HandleTypeDef *hi2c;   // I2C 句柄
+    uint16_t Addr;             // 设备地址 (8-bit)
+    
+    // 物理参数 (初始化时传入)
+    float ShuntResistor_Ohm;   // 分流电阻阻值 (例如 0.01 欧姆)
+    float MaxCurrent_Amp;      // 预期最大电流 (例如 5.0 安培)
+    
+    // 内部计算用的系数
+    float Current_LSB;         // 电流分辨率 (A/bit)
+    float Power_LSB;           // 功率分辨率 (W/bit)
+    
+    // 测量结果缓存 (物理量)
+    float Voltage_V;           // 总线电压 (V)
+    float Current_A;           // 电流 (A)
+    float Power_W;             // 功率 (W)
+    float ShuntVoltage_mV;     // 分流电阻压降 (mV)
+    
+} INA226_HandleTypeDef;
+
+/* --- 函数声明 --- */
+
+/**
+ * @brief 初始化 INA226
+ * @param r_shunt: 分流电阻值 (单位: 欧姆)
+ * @param i_max:   设计最大电流 (单位: 安培), 用于计算最佳分辨率
+ */
+HAL_StatusTypeDef INA226_Init(INA226_HandleTypeDef *hdev, I2C_HandleTypeDef *hi2c, uint16_t addr, float r_shunt, float i_max);
+
+// 读取所有数据 (电压、电流、功率) 并更新到句柄结构体中
+HAL_StatusTypeDef INA226_ReadAll(INA226_HandleTypeDef *hdev);
+
+// 单独读取总线电压 (不依赖校准)
+HAL_StatusTypeDef INA226_GetBusVoltage(INA226_HandleTypeDef *hdev);
+
+// 复位设备
+HAL_StatusTypeDef INA226_Reset(INA226_HandleTypeDef *hdev);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __INA226_H__ */
+

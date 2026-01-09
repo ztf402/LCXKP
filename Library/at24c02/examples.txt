@@ -1,0 +1,56 @@
+#include "main.h"
+#include "i2c.h"
+#include "at24c02.h"
+#include <stdio.h>
+
+// 1. 定义句柄
+AT24C02_HandleTypeDef hEEPROM;
+
+// 定义一个要保存的配置结构体
+typedef struct {
+    uint8_t  DeviceID;
+    float    Calibration_Factor;
+    uint32_t Boot_Count;
+} SystemConfig_t;
+
+SystemConfig_t myConfig;
+
+int main(void) {
+    HAL_Init();
+    SystemClock_Config();
+    MX_I2C1_Init();
+
+    // 2. 初始化 AT24C02
+    // 根据之前的分析，你的 AT24C02 地址是 0xA0 (0x50 << 1)
+    if (AT24C02_Init(&hEEPROM, &hi2c1, 0xA0) != HAL_OK) {
+        printf("EEPROM not found!\r\n");
+    }
+
+    // 3. 读取现有配置
+    AT24C02_ReadBuffer(&hEEPROM, 0x00, (uint8_t*)&myConfig, sizeof(SystemConfig_t));
+
+    // 检查是否是第一次运行 (假设 DeviceID 应该是 0x55)
+    if (myConfig.DeviceID != 0x55) {
+        printf("First run or data corrupted, resetting config...\r\n");
+        
+        // 设置默认值
+        myConfig.DeviceID = 0x55;
+        myConfig.Calibration_Factor = 1.23f;
+        myConfig.Boot_Count = 0;
+        
+        // 写入 EEPROM
+        AT24C02_WriteBuffer(&hEEPROM, 0x00, (uint8_t*)&myConfig, sizeof(SystemConfig_t));
+    } else {
+        printf("Config loaded. Boot count: %lu\r\n", myConfig.Boot_Count);
+    }
+
+    // 4. 更新数据并保存
+    myConfig.Boot_Count++;
+    AT24C02_WriteBuffer(&hEEPROM, 0x00, (uint8_t*)&myConfig, sizeof(SystemConfig_t));
+    
+    printf("New Boot Count saved: %lu\r\n", myConfig.Boot_Count);
+
+    while (1) {
+        HAL_Delay(1000);
+    }
+}

@@ -1,0 +1,185 @@
+#include "sd3078.h"
+
+// ================= 内部宏与辅助函数 =================
+
+#define BCD2DEC(x)  (((x) >> 4) * 10 + ((x) & 0x0F))
+#define DEC2BCD(x)  ((((x) / 10) << 4) | ((x) % 10))
+
+// I2C 读写封装
+static int8_t SD3078_WriteRegs(SD3078_t *dev, uint8_t reg, uint8_t *data, uint16_t len) {
+    if (HAL_I2C_Mem_Write(dev->hi2c, SD3078_I2C_ADDR, reg, I2C_MEMADD_SIZE_8BIT, data, len, 100) != HAL_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+static int8_t SD3078_ReadRegs(SD3078_t *dev, uint8_t reg, uint8_t *data, uint16_t len) {
+    if (HAL_I2C_Mem_Read(dev->hi2c, SD3078_I2C_ADDR, reg, I2C_MEMADD_SIZE_8BIT, data, len, 100) != HAL_OK) {
+        return -1;
+    }
+    return 0;
+}
+
+/**
+ * @brief 写保护控制
+ * SD3078 写入时间前必须开启写使能
+ * 涉及寄存器 CTR1(0x0F) 和 CTR2(0x10)
+ */
+static void SD3078_WriteEnable(SD3078_t *dev, uint8_t enable) {
+    uint8_t ctr1 = 0, ctr2 = 0;
+    
+    // 读当前配置
+    SD3078_ReadRegs(dev, SD3078_REG_CTR1, &ctr1, 1);
+    SD3078_ReadRegs(dev, SD3078_REG_CTR2, &ctr2, 1);
+
+    if (enable) {
+        // 解锁序列：
+        // CTR2 bit 7 (WRTC1) = 1
+        // CTR1 bit 2 (WRTC2) = 1, bit 7 (WRTC3) = 1
+        ctr2 |= 0x80; 
+        ctr1 |= 0x84; // Set Bit 7 and Bit 2
+        
+        // 必须先写 CTR2，再写 CTR1 (参考手册推荐顺序)
+        SD3078_WriteRegs(dev, SD3078_REG_CTR2, &ctr2, 1);
+        SD3078_WriteRegs(dev, SD3078_REG_CTR1, &ctr1, 1);
+    } else {
+        // 禁止写入
+        ctr2 &= ~0x80;
+        ctr1 &= ~0x84;
+        
+        SD3078_WriteRegs(dev, SD3078_REG_CTR1, &ctr1, 1);
+        SD3078_WriteRegs(dev, SD3078_REG_CTR2, &ctr2, 1);
+    }
+}
+
+// ================= 外部接口实现 =================
+
+/**
+ * @brief 初始化
+ */
+int8_t SD3078_Init(SD3078_t *dev, SD3078_I2C_Handle hi2c) {
+    if (dev == NULL || hi2c == NULL) return -1;
+    
+    dev->hi2c = hi2c;
+    dev->initialized = 0;
+
+    // 检查设备是否在线
+    if (HAL_I2C_IsDeviceReady(dev->hi2c, SD3078_I2C_ADDR, 3, 100) != HAL_OK) {
+        return -2;
+    }
+
+    // 可以在此处配置充电功能、中断输出等
+    // 默认开启写保护以防误触
+    SD3078_WriteEnable(dev, 0);
+
+    dev->initialized = 1;
+    return 0;
+}
+
+/**
+ * @brief 设置时间
+ */
+int8_t SD3078_SetTime(SD3078_t *dev, uint8_t hour, uint8_t min, uint8_t sec) {
+    uint8_t buffer[3];
+
+    // 限制范围
+    if (sec > 59) sec = 59;
+    if (min > 59) min = 59;
+    if (hour > 23) hour = 23;
+
+    // 转换为 BCD 码
+    buffer[0] = DEC2BCD(sec);
+    buffer[1] = DEC2BCD(min);
+    // SD3078 Hour寄存器 Bit7=1 代表 24小时制(通常默认)，这里强制设为24H模式的数据格式
+    // 注意：有些批次 Bit 7 为 12/24H 选择位，有些通过寄存器位设置。
+    // 标准 SD3078: Hour Bit 7 是 12H/24H mode flag (0=12H, 1=24H)。
+    // 我们这里强制使用 24H 模式，所以 hour 的最高位置 1
+    buffer[2] = DEC2BCD(hour) | 0x80; 
+
+    // 1. 解锁
+    SD3078_WriteEnable(dev, 1);
+    
+    // 2. 写入 (从 0x00 地址开始连续写3个字节)
+    int8_t status = SD3078_WriteRegs(dev, SD3078_REG_SC, buffer, 3);
+
+    // 3. 上锁
+    SD3078_WriteEnable(dev, 0);
+
+    return status;
+}
+
+/**
+ * @brief 设置日期
+ */
+int8_t SD3078_SetDate(SD3078_t *dev, uint8_t year, uint8_t month, uint8_t day, uint8_t week) {
+    uint8_t buffer[4]; // Week, Day, Month, Year
+
+    // 转换为 BCD
+    buffer[0] = DEC2BCD(week);
+    buffer[1] = DEC2BCD(day);
+    buffer[2] = DEC2BCD(month);
+    buffer[3] = DEC2BCD(year);
+
+    SD3078_WriteEnable(dev, 1);
+    // 从 0x03 (Week) 开始写入 4 个字节
+    int8_t status = SD3078_WriteRegs(dev, SD3078_REG_WK, buffer, 4);
+    SD3078_WriteEnable(dev, 0);
+
+    return status;
+}
+
+/**
+ * @brief 获取时间
+ */
+int8_t SD3078_GetTime(SD3078_t *dev, SD3078_Time_t *time) {
+    uint8_t buffer[3];
+    
+    if (SD3078_ReadRegs(dev, SD3078_REG_SC, buffer, 3) != 0) return -1;
+
+    time->seconds = BCD2DEC(buffer[0] & 0x7F); // 屏蔽无效位
+    time->minutes = BCD2DEC(buffer[1] & 0x7F);
+    time->hours   = BCD2DEC(buffer[2] & 0x3F); // 屏蔽 12/24H 标志位
+
+    return 0;
+}
+
+/**
+ * @brief 获取日期
+ */
+int8_t SD3078_GetDate(SD3078_t *dev, SD3078_Date_t *date) {
+    uint8_t buffer[4];
+
+    // 从 0x03 开始读取 Week, Day, Month, Year
+    if (SD3078_ReadRegs(dev, SD3078_REG_WK, buffer, 4) != 0) return -1;
+
+    date->week  = BCD2DEC(buffer[0] & 0x07);
+    date->day   = BCD2DEC(buffer[1] & 0x3F);
+    date->month = BCD2DEC(buffer[2] & 0x1F);
+    date->year  = BCD2DEC(buffer[3]);
+
+    return 0;
+}
+
+/**
+ * @brief 获取完整时间和日期 (原子操作)
+ * 推荐使用此函数代替分两次读取，防止在读取过程中发生进位（例如 23:59:59 -> 00:00:00）
+ */
+int8_t SD3078_GetFullTime(SD3078_t *dev, SD3078_Time_t *time, SD3078_Date_t *date) {
+    uint8_t buffer[7]; // Sec, Min, Hour, Week, Day, Month, Year
+
+    // 从 0x00 一次性读取 7 个字节
+    if (SD3078_ReadRegs(dev, SD3078_REG_SC, buffer, 7) != 0) return -1;
+
+    // 解析时间
+    time->seconds = BCD2DEC(buffer[0] & 0x7F);
+    time->minutes = BCD2DEC(buffer[1] & 0x7F);
+    time->hours   = BCD2DEC(buffer[2] & 0x3F);
+
+    // 解析日期
+    date->week    = BCD2DEC(buffer[3] & 0x07);
+    date->day     = BCD2DEC(buffer[4] & 0x3F);
+    date->month   = BCD2DEC(buffer[5] & 0x1F);
+    date->year    = BCD2DEC(buffer[6]);
+
+    return 0;
+}

@@ -1,0 +1,43 @@
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "spi.h"
+#include "gpio.h"
+#include "icm42688.h" // 引入驱动头文件
+#include <stdio.h>
+
+/* Private variables ---------------------------------------------------------*/
+ICM42688_t icm_imu; // 定义一个 IMU 对象
+
+/* Private user code ---------------------------------------------------------*/
+void User_Init(void)
+{
+    printf("Initializing ICM-42688-P...\r\n");
+
+    // 初始化：传入 SPI 句柄和 CS 引脚
+    // 假设使用 SPI1, 片选引脚为 GPI A, Pin 4
+    int8_t status = ICM42688_Init(&icm_imu, &hspi1, GPIOA, GPIO_PIN_4);
+
+    if (status == 0) {
+        printf("ICM-42688 Init Success!\r\n");
+    } else {
+        printf("ICM-42688 Init Failed! Error: %d\r\n", status);
+        Error_Handler();
+    }
+}
+
+void User_Loop(void)
+{
+    // 读取数据
+    if (ICM42688_ReadData(&icm_imu) == 0) {
+        // 打印物理数据
+        printf("Accel: %.2f, %.2f, %.2f g\r\n", 
+               icm_imu.data.accel_x_g, icm_imu.data.accel_y_g, icm_imu.data.accel_z_g);
+        
+        printf("Gyro: %.2f, %.2f, %.2f dps\r\n", 
+               icm_imu.data.gyro_x_dps, icm_imu.data.gyro_y_dps, icm_imu.data.gyro_z_dps);
+               
+        printf("Temp: %.2f C\r\n", icm_imu.data.temp_c);
+    }
+    
+    HAL_Delay(100);
+}

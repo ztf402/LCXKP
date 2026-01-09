@@ -1,0 +1,41 @@
+#include "main.h"
+#include "i2c.h"
+#include "pca9555.h"
+
+// 1. 定义设备句柄
+PCA9555_HandleTypeDef hExpander1;
+
+int main(void) {
+    HAL_Init();
+    SystemClock_Config();
+    MX_I2C1_Init(); // CubeMX 生成的 I2C 初始化
+
+    // 2. 初始化 PCA9555
+    // 假设 A0=0, A1=0, A2=0 -> 地址 0x20 -> 左移后 0x40
+    if (PCA9555_Init(&hExpander1, &hi2c1, 0x40) != HAL_OK) {
+        Error_Handler(); // 设备未找到
+    }
+
+    // 3. 配置引脚方向
+    // 将 Port 0 的 Pin 0 和 Pin 1 设为输出 (控制 LED)
+    PCA9555_SetMode(&hExpander1, PCA9555_PORT_0, PCA9555_PIN_0 | PCA9555_PIN_1, PCA9555_MODE_OUTPUT);
+    
+    // 将 Port 1 的 Pin 7 设为输入 (读取按键)
+    PCA9555_SetMode(&hExpander1, PCA9555_PORT_1, PCA9555_PIN_7, PCA9555_MODE_INPUT);
+
+    while (1) {
+        // 4. 写操作：翻转 LED
+        PCA9555_TogglePin(&hExpander1, PCA9555_PORT_0, PCA9555_PIN_0);
+        
+        // 5. 读操作：读取 Port 1 Pin 7
+        if (PCA9555_ReadPin(&hExpander1, PCA9555_PORT_1, PCA9555_PIN_7) == PCA9555_PIN_SET) {
+            // 检测到高电平，点亮 Pin 1
+            PCA9555_WritePin(&hExpander1, PCA9555_PORT_0, PCA9555_PIN_1, PCA9555_PIN_SET);
+        } else {
+            // 检测到低电平，熄灭 Pin 1
+            PCA9555_WritePin(&hExpander1, PCA9555_PORT_0, PCA9555_PIN_1, PCA9555_PIN_RESET);
+        }
+
+        HAL_Delay(500);
+    }
+}

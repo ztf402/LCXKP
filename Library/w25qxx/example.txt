@@ -1,0 +1,49 @@
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "spi.h"
+#include "gpio.h"
+#include "w25qxx.h"  // 包含驱动头文件
+#include <stdio.h>
+
+/* Private variables ---------------------------------------------------------*/
+W25Q_Handle_t hW25Q; // 定义W25Q对象
+
+/* ... inside main() ... */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_DMA_Init(); // 必须在SPI初始化之前
+  MX_SPI1_Init();
+
+  /* 1. 初始化驱动 */
+  // 假设CS引脚是 PA4
+  printf("Initializing W25Q...\r\n");
+  int8_t res = W25Q_Init(&hW25Q, &hspi1, GPIOA, GPIO_PIN_4);
+  
+  if (res == 0) {
+      printf("W25Q Init Success! ID: 0x%X, Capacity: %lu KB\r\n", 
+             hW25Q.ID, hW25Q.Capacity / 1024);
+  } else {
+      printf("W25Q Init Failed: %d\r\n", res);
+      Error_Handler();
+  }
+
+  /* 2. 擦除扇区 0 */
+  printf("Erasing Sector 0...\r\n");
+  W25Q_EraseSector(&hW25Q, 0x000000);
+
+  /* 3. 写入数据 */
+  uint8_t write_buf[] = "Hello W25Q with DMA!";
+  printf("Writing data...\r\n");
+  W25Q_Write(&hW25Q, 0x000000, write_buf, sizeof(write_buf));
+
+  /* 4. 读取数据 */
+  uint8_t read_buf[32] = {0};
+  printf("Reading data...\r\n");
+  W25Q_Read(&hW25Q, 0x000000, read_buf, sizeof(write_buf));
+
+  printf("Read back: %s\r\n", read_buf);
+
+  while (1)
+  {
+  }

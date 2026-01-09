@@ -1,0 +1,84 @@
+#ifndef __PCA9555_H__
+#define __PCA9555_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* 依赖具体的HAL库，或者直接包含 main.h */
+#include "main.h" 
+// #include "stm32f4xx_hal.h" // 如果 main.h 中没有包含，请手动指定
+
+/* --- 寄存器地址定义 (Command Byte) --- */
+#define PCA9555_REG_INPUT_PORT0    0x00
+#define PCA9555_REG_INPUT_PORT1    0x01
+#define PCA9555_REG_OUTPUT_PORT0   0x02
+#define PCA9555_REG_OUTPUT_PORT1   0x03
+#define PCA9555_REG_INVERSION_0    0x04
+#define PCA9555_REG_INVERSION_1    0x05
+#define PCA9555_REG_CONFIG_0       0x06
+#define PCA9555_REG_CONFIG_1       0x07
+
+/* --- 引脚定义 --- */
+#define PCA9555_PIN_0    (1 << 0)
+#define PCA9555_PIN_1    (1 << 1)
+#define PCA9555_PIN_2    (1 << 2)
+#define PCA9555_PIN_3    (1 << 3)
+#define PCA9555_PIN_4    (1 << 4)
+#define PCA9555_PIN_5    (1 << 5)
+#define PCA9555_PIN_6    (1 << 6)
+#define PCA9555_PIN_7    (1 << 7)
+#define PCA9555_PIN_ALL  0xFF
+
+/* --- 端口定义 --- */
+typedef enum {
+    PCA9555_PORT_0 = 0,
+    PCA9555_PORT_1 = 1
+} PCA9555_Port_t;
+
+/* --- IO 模式定义 --- */
+typedef enum {
+    PCA9555_MODE_OUTPUT = 0, // 0 in Config Register
+    PCA9555_MODE_INPUT  = 1  // 1 in Config Register
+} PCA9555_Mode_t;
+
+/* --- IO 状态定义 --- */
+typedef enum {
+    PCA9555_PIN_RESET = 0,
+    PCA9555_PIN_SET   = 1
+} PCA9555_PinState_t;
+
+/* --- PCA9555 对象句柄 --- */
+typedef struct {
+    I2C_HandleTypeDef *hi2c;    // 指向STM32 I2C句柄的指针
+    uint16_t Addr;              // 设备地址 (8-bit, 左移后的地址)
+    
+    // 影子寄存器 (用于缓存当前状态，减少I2C读取)
+    uint8_t Output_Reg[2];      // Port 0 和 Port 1 的输出寄存器缓存
+    uint8_t Config_Reg[2];      // Port 0 和 Port 1 的配置寄存器缓存
+    
+    uint8_t Initialized;        // 初始化标志
+} PCA9555_HandleTypeDef;
+
+/* --- 函数声明 --- */
+
+// 初始化
+HAL_StatusTypeDef PCA9555_Init(PCA9555_HandleTypeDef *hdev, I2C_HandleTypeDef *hi2c, uint16_t addr);
+
+// IO 操作 (单引脚)
+HAL_StatusTypeDef PCA9555_WritePin(PCA9555_HandleTypeDef *hdev, PCA9555_Port_t port, uint16_t pin_mask, PCA9555_PinState_t state);
+PCA9555_PinState_t PCA9555_ReadPin(PCA9555_HandleTypeDef *hdev, PCA9555_Port_t port, uint16_t pin_mask);
+HAL_StatusTypeDef PCA9555_TogglePin(PCA9555_HandleTypeDef *hdev, PCA9555_Port_t port, uint16_t pin_mask);
+
+// 端口操作 (8位)
+HAL_StatusTypeDef PCA9555_WritePort(PCA9555_HandleTypeDef *hdev, PCA9555_Port_t port, uint8_t value);
+HAL_StatusTypeDef PCA9555_ReadPort(PCA9555_HandleTypeDef *hdev, PCA9555_Port_t port, uint8_t *pData);
+
+// 配置操作
+HAL_StatusTypeDef PCA9555_SetMode(PCA9555_HandleTypeDef *hdev, PCA9555_Port_t port, uint16_t pin_mask, PCA9555_Mode_t mode);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __PCA9555_H__ */
