@@ -15,6 +15,7 @@
 
 ```text
 .
+├── LCXKP                  # 用于切换 SPI2 和 I2S2 
 ├── LCXKP_FLASH_SPI        # Flash 算法生成工程 (MDK)
 │   ├── Drivers
 │   │   ├── CMSIS
@@ -30,6 +31,6 @@
     ├── ina226             # 电流电压功率监控
     ├── pca9555            # I/O 扩展芯片
     ├── sd3078             # 实时时钟 (RTC)
-    └── w25qxx             # SPI Flash
+    └── w25qxx             # SPI Flash 支持自动识别容量
 
 
